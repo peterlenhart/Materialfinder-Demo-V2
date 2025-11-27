@@ -1,380 +1,431 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Material Finder</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Material Finder</title>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Excel-Library von CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-<style>
-  *{ box-sizing:border-box; }
-
-  body{
-    margin:0;
-    font-family:Arial, sans-serif;
-    background:#f4f6fa;
-    display:flex;
-    justify-content:center;
-    color:#222;
-  }
-
-  .app{
-    width:100%;
-    max-width:480px;
-    padding:20px 16px 40px;
-  }
-
-  h1{
-    text-align:center;
-    margin:0 0 12px;
-    font-size:2rem;
-  }
-
-  /* --- Kleiner Import-Button --- */
-  .excel-icon-btn{
-    width:42px;
-    height:42px;
-    border-radius:12px;
-    padding:0;
-    border:none;
-    background:#d9d9d9;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-  }
-
-  .excel-icon{
-    font-size:1.5rem;
-  }
-
-  #statusText{
-    font-size:0.75rem;
-    color:#777;
-    margin-left:10px;
-  }
-
-  .top-row{
-    display:flex;
-    align-items:center;
-    justify-content:flex-start;
-    gap:8px;
-    margin-bottom:12px;
-  }
-
-  /* Material Buttons */
-  .materials{
-    margin:16px 0;
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:8px;
-  }
-
-  .mat-btn{
-    background:#4b4f57;
-    border:none;
-    border-radius:12px;
-    padding:12px 0;
-    color:#fff;
-    font-size:1rem;
-  }
-
-  .mat-btn.active{
-    background:#0050a0;
-  }
-
-  /* Höhe/Breite Auswahl */
-  .dimension-area{
-    display:none;
-    margin-top:10px;
-  }
-
-  .dim-row-labels,
-  .dim-row-selects{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:10px;
-  }
-
-  .dim-label{
-    font-size:1rem;
-    font-weight:bold;
-  }
-
-  .dim-picker{
-    position:relative;
-  }
-
-  select{
-    width:100%;
-    padding:12px;
-    font-size:1.2rem;
-    border-radius:12px;
-    border:1px solid #cdd4e0;
-    background:#fff;
-    appearance:none;
-    -webkit-appearance:none;
-  }
-
-  .dim-picker::after{
-    content:"▾";
-    position:absolute;
-    right:12px;
-    top:50%;
-    transform:translateY(-50%);
-    color:#666;
-  }
-
-  .search-btn{
-    margin-top:16px;
-    width:100%;
-    padding:14px;
-    border:none;
-    border-radius:12px;
-    font-size:1.2rem;
-    background:#0050a0;
-    color:white;
-  }
-
-  /* Ergebnisfeld */
-  .result-area{
-    margin-top:24px;
-    display:none;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-  }
-
-  .result-card{
-    background:#0090d8;            /* schönes helleres Cyan-Blau */
-    width:min(40vh,40vw);
-    height:min(40vh,40vw);
-    max-width:260px;
-    max-height:260px;
-    border-radius:24px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    gap:12px;
-    padding:16px;
-  }
-
-  .result-matnr{
-    background:#fff;
-    padding:8px 16px;
-    border-radius:14px;
-    font-size:1.6rem;
-    letter-spacing:0.2rem;
-  }
-
-  .result-number{
-    font-size:3.6rem;
-    font-weight:bold;
-    color:#ffd600;
-  }
-
-  .result-regal{
-    font-size:1.6rem;
-    font-weight:600;
-  }
-
-  .result-info{
-    font-size:0.9rem;
-    color:#666;
-  }
-</style>
-</head>
-
-<body>
-<div class="app">
-  <h1>Material Finder</h1>
-
-  <div class="top-row">
-    <button class="excel-icon-btn" id="excelBtn">
-      <span class="excel-icon">📥</span>
-    </button>
-    <div id="statusText">
-      Keine Excel-Daten importiert (Demo aktiv)
-    </div>
-  </div>
-
-  <input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none"/>
-
-  <div class="materials">
-    <button class="mat-btn" data-mat="K110">K110</button>
-    <button class="mat-btn" data-mat="Tlx">Tlx</button>
-    <button class="mat-btn" data-mat="Toolox">Toolox</button>
-    <button class="mat-btn" data-mat="W300">W300</button>
-  </div>
-
-  <div class="dimension-area" id="dimensionArea">
-    <div class="dim-row-labels">
-      <div class="dim-label">Höhe</div>
-      <div class="dim-label">Breite</div>
-    </div>
-
-    <div class="dim-row-selects">
-      <div class="dim-picker">
-        <select id="heightSelect"></select>
-      </div>
-      <div class="dim-picker">
-        <select id="widthSelect"></select>
-      </div>
-    </div>
-
-    <button class="search-btn" id="searchBtn">Suchen</button>
-  </div>
-
-  <div class="result-area" id="resultArea">
-    <div class="result-card">
-      <div class="result-matnr" id="resultMatnr">----</div>
-      <div class="result-number" id="resultNumber">-</div>
-    </div>
-    <div class="result-regal" id="resultRegal">Regal -</div>
-    <div class="result-info" id="resultInfo"></div>
-  </div>
-
-</div>
-
-
-<script>
-let dataRows = [];
-let usingExcel = false;
-let selectedWerkstoff = null;
-
-const demoData = [
-  { Mat:"7900001015", Werkstoff:"K110",  Maße:"40 x 60", Lag:"5.1" },
-  { Mat:"7900002014", Werkstoff:"K110",  Maße:"50 x 70", Lag:"6.1" },
-  { Mat:"7900003013", Werkstoff:"W300",  Maße:"40 x 60", Lag:"3.2" },
-  { Mat:"7900004012", Werkstoff:"Tlx",   Maße:"40 x 60", Lag:"2.1" },
-  { Mat:"7900005011", Werkstoff:"Toolox",Maße:"40 x 60", Lag:"4.1" }
-];
-
-function parseMasze(str){
-  const parts = String(str).split(/x|×/i).map(s => Number(s.trim()));
-  if(parts.length<2) return {};
-  return {
-    height: Math.min(parts[0],parts[1]),
-    width : Math.max(parts[0],parts[1])
-  };
-}
-
-function parseLag(str){
-  const p = String(str).split(".");
-  return { feld:p[0]||"-", regal:p[1]||"-" };
-}
-
-function buildPickers(w){
-  const rows=dataRows.filter(r => String(r.Werkstoff).trim()===w);
-
-  let heights=new Set();
-  let widths =new Set();
-
-  rows.forEach(r=>{
-    const {height,width}=parseMasze(r.Maße);
-    if(height && width){
-      heights.add(height);
-      widths.add(width);
+  <style>
+    * {
+      box-sizing: border-box;
     }
-  });
 
-  const hSel=document.getElementById("heightSelect");
-  const wSel=document.getElementById("widthSelect");
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6fa;
+      color: #222;
+      display: flex;
+      justify-content: center;
+    }
 
-  hSel.innerHTML="";
-  wSel.innerHTML="";
+    .app {
+      width: 100%;
+      max-width: 480px;
+      padding: 20px 16px 40px;
+    }
 
-  [...heights].sort((a,b)=>a-b).forEach(v=>{
-    const o=document.createElement("option");
-    o.value=v; o.textContent=v;
-    hSel.appendChild(o);
-  });
+    h1 {
+      margin: 0 0 12px;
+      text-align: center;
+      font-size: 2rem;
+    }
 
-  [...widths].sort((a,b)=>a-b).forEach(v=>{
-    const o=document.createElement("option");
-    o.value=v; o.textContent=v;
-    wSel.appendChild(o);
-  });
+    /* obere Zeile: Icon + Status-Text */
+    .top-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
 
-  document.getElementById("dimensionArea").style.display =
-    (heights.size>0 && widths.size>0) ? "block":"none";
-}
+    .excel-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      border: none;
+      background: #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      cursor: pointer;
+      padding: 0;
+    }
 
-function updateStatus(){
-  statusText.textContent = usingExcel
-    ? `Excel importiert: ${dataRows.length} Datensätze`
-    : `Keine Excel-Daten importiert (Demo aktiv)`;
-}
+    .excel-icon .icon {
+      font-size: 2rem; /* Schütte mit grünem Pfeil als Emoji */
+    }
 
-function showResult(row){
-  if(!row){
-    resultArea.style.display="none";
-    return;
-  }
+    .status-text {
+      font-size: 0.9rem;
+      color: #555;
+      flex: 1;
+    }
 
-  const matShort = String(row.Mat).slice(-4);
-  const {feld,regal} = parseLag(row.Lag);
+    /* Material-Buttons */
+    .materials {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin: 16px 0;
+    }
 
-  resultMatnr.textContent = matShort;
-  resultNumber.textContent = feld;
-  resultRegal.textContent = `Regal ${regal}`;
-  resultInfo.textContent = `Materialnummer: ${row.Mat}`;
+    .mat-btn {
+      padding: 10px 0;
+      border-radius: 12px;
+      border: none;
+      background: #4b4f57;
+      color: #fff;
+      font-size: 1rem;
+    }
 
-  resultArea.style.display = "flex";
-}
+    .mat-btn.active {
+      background: #0050a0;
+    }
 
-excelBtn.onclick = ()=> excelInput.click();
+    /* Höhe / Breite Bereich */
+    .dimension-area {
+      margin-top: 8px;
+      display: none; /* erst anzeigen, wenn Material gewählt */
+    }
 
-excelInput.onchange = (e)=>{
-  const file=e.target.files[0];
-  if(!file) return;
+    .dim-row-labels,
+    .dim-row-selects {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 6px;
+    }
 
-  const reader=new FileReader();
-  reader.onload=(evt)=>{
-    const wb=XLSX.read(new Uint8Array(evt.target.result),{type:"array"});
-    const sheet=wb.Sheets[wb.SheetNames[0]];
-    dataRows=XLSX.utils.sheet_to_json(sheet,{defval:""});
-    usingExcel=true;
-    updateStatus();
+    .dim-label {
+      font-weight: bold;
+      font-size: 0.95rem;
+    }
 
-    if(selectedWerkstoff) buildPickers(selectedWerkstoff);
-  };
-  reader.readAsArrayBuffer(file);
-};
+    .dim-picker {
+      position: relative;
+    }
 
-document.querySelectorAll(".mat-btn").forEach(btn=>{
-  btn.onclick=()=>{
-    document.querySelectorAll(".mat-btn").forEach(b=>b.classList.remove("active"));
-    btn.classList.add("active");
-    selectedWerkstoff = btn.dataset.mat;
-    buildPickers(selectedWerkstoff);
-    resultArea.style.display="none";
-  };
-});
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 1.1rem;
+      border-radius: 12px;
+      border: 1px solid #cdd4e0;
+      background: #ffffff;
+      appearance: none;
+      -webkit-appearance: none;
+    }
 
-searchBtn.onclick=()=>{
-  if(!selectedWerkstoff) return;
+    /* kleiner Pfeil im Select */
+    .dim-picker::after {
+      content: "▾";
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.9rem;
+      color: #666;
+      pointer-events: none;
+    }
 
-  const h=Number(heightSelect.value);
-  const w=Number(widthSelect.value);
+    .search-btn {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px 0;
+      font-size: 1.15rem;
+      border-radius: 12px;
+      border: none;
+      background: #0050a0;
+      color: #fff;
+    }
 
-  const row=dataRows.find(r=>{
-    if(String(r.Werkstoff).trim()!==selectedWerkstoff) return false;
-    const {height,width}=parseMasze(r.Maße);
-    return height===h && width===w;
-  });
+    /* Ergebnisbereich */
+    .result-area {
+      margin-top: 24px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
 
-  showResult(row||null);
-};
+    /* quadratisches blaue Feld */
+    .result-card {
+      /* ca. 40 % der kürzeren Bildschirmkante, aber begrenzt */
+      width: min(40vh, 40vw);
+      height: min(40vh, 40vw);
+      max-width: 230px;
+      max-height: 230px;
 
-(function init(){
-  dataRows = demoData;
-  usingExcel=false;
-  updateStatus();
-})();
-</script>
+      background: #00549e;     /* helleres Blau (100% C, ~50% M, ~40% K) */
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+    }
 
+    .result-matnr {
+      background: #fff;
+      border-radius: 16px;
+      padding: 6px 16px;
+      font-size: 1.5rem;
+      letter-spacing: 0.2rem;
+    }
+
+    .result-number {
+      color: #ffd600;
+      font-weight: bold;
+      font-size: 3.4rem;
+      line-height: 1;
+    }
+
+    .result-regal {
+      font-size: 1.4rem;
+      font-weight: 600;
+    }
+
+    .result-info {
+      font-size: 0.9rem;
+      color: #666;
+      text-align: center;
+    }
+
+    @media (min-width: 768px) {
+      .app {
+        max-width: 640px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Material Finder</h1>
+
+    <div class="top-row">
+      <button class="excel-icon" id="excelBtn" title="Excel-Datei importieren">
+        <span class="icon">📥</span>
+      </button>
+      <div class="status-text" id="statusText">
+        Keine Excel-Daten importiert (Demo-Fallback aktiv).
+      </div>
+    </div>
+
+    <!-- verstecktes File-Input -->
+    <input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none" />
+
+    <!-- Werkstoff-Auswahl -->
+    <div class="materials">
+      <button class="mat-btn" data-mat="K110">K110</button>
+      <button class="mat-btn" data-mat="Tlx">Tlx</button>
+      <button class="mat-btn" data-mat="Toolox">Toolox</button>
+      <button class="mat-btn" data-mat="W300">W300</button>
+    </div>
+
+    <!-- Höhe / Breite + Suchen -->
+    <div class="dimension-area" id="dimensionArea">
+      <div class="dim-row-labels">
+        <div class="dim-label">Höhe</div>
+        <div class="dim-label">Breite</div>
+      </div>
+      <div class="dim-row-selects">
+        <div class="dim-picker">
+          <select id="heightSelect"></select>
+        </div>
+        <div class="dim-picker">
+          <select id="widthSelect"></select>
+        </div>
+      </div>
+
+      <button class="search-btn" id="searchBtn">Suchen</button>
+    </div>
+
+    <!-- Ergebnis -->
+    <div class="result-area" id="resultArea">
+      <div class="result-card">
+        <div class="result-matnr" id="resultMatnr">----</div>
+        <div class="result-number" id="resultNumber">-</div>
+      </div>
+      <div class="result-regal" id="resultRegal">Regal -</div>
+      <div class="result-info" id="resultInfo"></div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Daten & Zustand ----------
+    let dataRows = [];      // alle Zeilen aus Excel oder Demo
+    let usingExcel = false;
+    let selectedWerkstoff = null;
+
+    // Demo-Fallback-Daten – kannst du später erweitern oder löschen
+    const demoData = [
+      { Mat: "7900001015", Werkstoff: "K110", Maße: "40 x 60", Lag: "5.1" },
+      { Mat: "7900002014", Werkstoff: "K110", Maße: "50 x 70", Lag: "6.1" },
+      { Mat: "7900003013", Werkstoff: "W300", Maße: "40 x 60", Lag: "3.2" },
+      { Mat: "7900004012", Werkstoff: "Tlx",  Maße: "40 x 60", Lag: "2.1" },
+      { Mat: "7900005011", Werkstoff: "Toolox", Maße: "40 x 60", Lag: "4.1" }
+    ];
+
+    // ---------- Hilfsfunktionen ----------
+    function parseMasze(str) {
+      if (!str) return { height: null, width: null };
+      const parts = String(str).split(/x|×/i).map(s => Number(String(s).trim()));
+      if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+        return { height: null, width: null };
+      }
+      const a = parts[0], b = parts[1];
+      return {
+        height: Math.min(a, b),
+        width: Math.max(a, b)
+      };
+    }
+
+    function parseLag(str) {
+      if (!str) return { feld: "-", regal: "-" };
+      const p = String(str).split(".");
+      return {
+        feld: p[0] || "-",
+        regal: p[1] || "-"
+      };
+    }
+
+    function buildPickers(werkstoff) {
+      const rows = dataRows.filter(r => String(r.Werkstoff).trim() === werkstoff);
+
+      const heights = new Set();
+      const widths  = new Set();
+
+      rows.forEach(r => {
+        const { height, width } = parseMasze(r.Maße);
+        if (height && width) {
+          heights.add(height);
+          widths.add(width);
+        }
+      });
+
+      const heightSelect = document.getElementById("heightSelect");
+      const widthSelect  = document.getElementById("widthSelect");
+
+      heightSelect.innerHTML = "";
+      widthSelect.innerHTML  = "";
+
+      Array.from(heights).sort((a,b) => a-b).forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        heightSelect.appendChild(opt);
+      });
+
+      Array.from(widths).sort((a,b) => a-b).forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        widthSelect.appendChild(opt);
+      });
+
+      const dimArea = document.getElementById("dimensionArea");
+      if (heights.size > 0 && widths.size > 0) {
+        dimArea.style.display = "block";
+      } else {
+        dimArea.style.display = "none";
+      }
+    }
+
+    function updateStatusText() {
+      const st = document.getElementById("statusText");
+      if (usingExcel) {
+        st.textContent = `Excel importiert: ${dataRows.length} Datensätze`;
+      } else {
+        st.textContent = "Keine Excel-Daten importiert (Demo-Fallback aktiv).";
+      }
+    }
+
+    function showResult(row) {
+      if (!row) {
+        document.getElementById("resultArea").style.display = "none";
+        return;
+      }
+      const matnrFull  = String(row.Mat || "").trim();
+      const matnrShort = matnrFull.slice(-4) || "----";  // NUR die letzten 4 Ziffern
+      const { feld, regal } = parseLag(row.Lag);
+
+      document.getElementById("resultMatnr").textContent   = matnrShort;
+      document.getElementById("resultNumber").textContent  = feld || "-";
+      document.getElementById("resultRegal").textContent   = `Regal ${regal || "-"}`;
+      document.getElementById("resultInfo").textContent    = matnrFull
+        ? `Materialnummer: ${matnrFull}`
+        : "";
+
+      document.getElementById("resultArea").style.display = "flex";
+    }
+
+    // ---------- Event-Handler ----------
+    // Excel-Icon
+    document.getElementById("excelBtn").addEventListener("click", () => {
+      document.getElementById("excelInput").click();
+    });
+
+    document.getElementById("excelInput").addEventListener("change", (evt) => {
+      const file = evt.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        dataRows = json;
+        usingExcel = true;
+        updateStatusText();
+
+        if (selectedWerkstoff) {
+          buildPickers(selectedWerkstoff);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Material-Buttons
+    document.querySelectorAll(".mat-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".mat-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        selectedWerkstoff = btn.dataset.mat;
+        buildPickers(selectedWerkstoff);
+        document.getElementById("resultArea").style.display = "none";
+      });
+    });
+
+    // Suchen-Button
+    document.getElementById("searchBtn").addEventListener("click", () => {
+      if (!selectedWerkstoff) return;
+
+      const h = Number(document.getElementById("heightSelect").value);
+      const w = Number(document.getElementById("widthSelect").value);
+
+      const row = dataRows.find(r => {
+        if (String(r.Werkstoff).trim() !== selectedWerkstoff) return false;
+        const { height, width } = parseMasze(r.Maße);
+        return height === h && width === w;
+      });
+
+      showResult(row || null);
+    });
+
+    // ---------- Initial: Demo-Daten ----------
+    (function init() {
+      dataRows = demoData.slice();
+      usingExcel = false;
+      updateStatusText();
+    })();
+  </script>
 </body>
 </html>
