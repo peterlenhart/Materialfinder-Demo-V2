@@ -37,32 +37,28 @@
     .top-row {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
+      gap: 10px;
+      margin-bottom: 12px;
     }
 
-    /* kleiner, dezenter Excel-Button mit Icon */
+    /* kleiner quadratischer Excel-Button mit 'Schütte + Pfeil' (📥) */
     .excel-button {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
       border: none;
-      background: #e0e0e0;
+      background: #e1e1e1;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 30px;
       padding: 0;
-    }
-
-    .excel-button span.icon {
-      font-size: 1.8rem;
     }
 
     .status-text {
       font-size: 0.9rem;
       color: #555;
       flex: 1;
-      line-height: 1.4;
     }
 
     .materials {
@@ -151,7 +147,7 @@
 
     /* quadratisches Ergebnisfeld */
     .result-card {
-      background: #00549e;
+      background: #00549e; /* helleres Blau */
       border-radius: 24px;
       width: min(40vh, 40vw);
       height: min(40vh, 40vw);
@@ -203,9 +199,7 @@
     <h1>Material Finder</h1>
 
     <div class="top-row">
-      <button class="excel-button" id="excelBtn">
-        <span class="icon">📥</span>
-      </button>
+      <button class="excel-button" id="excelBtn" title="Excel importieren">📥</button>
       <div class="status-text" id="statusText">
         Keine Excel-Daten importiert (Demo-Fallback aktiv).
       </div>
@@ -213,20 +207,19 @@
 
     <input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none" />
 
-    <!-- Werkstoff-Buttons werden dynamisch gebaut -->
-    <div class="materials" id="materialsContainer"></div>
+    <div class="materials" id="materials"></div>
 
     <div class="dimension-area" id="dimensionArea">
       <div class="dim-row-labels">
-        <div class="dim-label">Höhe</div>
-        <div class="dim-label">Breite</div>
+        <div class="dim-label">Maß 1</div>
+        <div class="dim-label">Maß 2</div>
       </div>
       <div class="dim-row-selects">
         <div class="dim-picker">
-          <select id="heightSelect"></select>
+          <select id="dimSelect1"></select>
         </div>
         <div class="dim-picker">
-          <select id="widthSelect"></select>
+          <select id="dimSelect2"></select>
         </div>
       </div>
 
@@ -249,56 +242,49 @@
     let usingExcel = false;
     let selectedWerkstoff = null;
 
-    const materialsContainer = document.getElementById("materialsContainer");
-
-    // Demo-Fallback-Daten – kannst du später erweitern oder löschen
+    // Demo-Fallback-Daten
     const demoData = [
-      { Mat: "7900001015", Werkstoff: "K110",   Maße: "40 x 60", Lag: "5.1" },
-      { Mat: "7900002014", Werkstoff: "K110",   Maße: "50 x 70", Lag: "6.1" },
-      { Mat: "7900003013", Werkstoff: "W300",   Maße: "40 x 60", Lag: "3.2" },
-      { Mat: "7900004012", Werkstoff: "Tlx",    Maße: "40 x 60", Lag: "2.1" },
+      { Mat: "7900001015", Werkstoff: "K110", Maße: "40 x 60", Lag: "5.1" },
+      { Mat: "7900002014", Werkstoff: "K110", Maße: "50 x 70", Lag: "6.1" },
+      { Mat: "7900003013", Werkstoff: "W300", Maße: "40 x 60", Lag: "3.2" },
+      { Mat: "7900004012", Werkstoff: "Tlx",  Maße: "40 x 60", Lag: "2.1" },
       { Mat: "7900005011", Werkstoff: "Toolox", Maße: "40 x 60", Lag: "4.1" }
     ];
 
-    // ---------- Hilfsfunktionen ----------
-
-    // liest einen Wert aus einem Datensatz, egal ob Groß-/Kleinschreibung
+    // ---------- Hilfsfunktionen für Feldnamen ----------
     function getField(row, names) {
-      for (const name of names) {
-        if (row[name] !== undefined && row[name] !== "") {
-          return row[name];
+      for (const n of names) {
+        if (row[n] !== undefined && row[n] !== null) {
+          return row[n];
         }
       }
       return "";
     }
 
     function getWerkstoff(row) {
-      return String(getField(row, ["Werkstoff", "WERKSTOFF", "werkstoff"])).trim();
+      return String(getField(row, ["Werkstoff", "WERKSTOFF"])).trim();
     }
 
     function getMat(row) {
-      return String(getField(row, ["Mat", "MAT", "mat"])).trim();
+      return String(getField(row, ["Mat", "MAT"])).trim();
     }
 
     function getMasze(row) {
-      return String(getField(row, ["Maße", "MASSE", "Masse"]));
+      return String(getField(row, ["Maße", "MASZE", "MASSE"])).trim();
     }
 
     function getLag(row) {
-      return String(getField(row, ["Lag", "LAG", "lag"]));
+      return String(getField(row, ["Lag", "LAG"])).trim();
     }
 
+    // ---------- Maße & Lagerplatz parsen ----------
     function parseMasze(str) {
-      if (!str) return { height: null, width: null };
+      if (!str) return { a: null, b: null };
       const parts = String(str).split(/x|×/i).map(s => Number(String(s).trim()));
       if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) {
-        return { height: null, width: null };
+        return { a: null, b: null };
       }
-      const a = parts[0], b = parts[1];
-      return {
-        height: Math.min(a, b),
-        width: Math.max(a, b)
-      };
+      return { a: parts[0], b: parts[1] }; // Reihenfolge bleibt, Auswertung macht beide Varianten
     }
 
     function parseLag(str) {
@@ -310,80 +296,69 @@
       };
     }
 
-    // Liste der Werkstoffe aus den Daten erzeugen
-    function extractWerkstoffe(rows) {
+    // ---------- Material-Buttons dynamisch aufbauen ----------
+    function buildMaterialButtons() {
+      const container = document.getElementById("materials");
+      container.innerHTML = "";
+
       const set = new Set();
-      rows.forEach(r => {
+      dataRows.forEach(r => {
         const w = getWerkstoff(r);
         if (w) set.add(w);
       });
-      return Array.from(set);
-    }
 
-    // Werkstoff-Buttons dynamisch aufbauen
-    function buildMaterialButtons(werkstoffe) {
-      materialsContainer.innerHTML = "";
-      selectedWerkstoff = null;
-      document.getElementById("dimensionArea").style.display = "none";
-      document.getElementById("resultArea").style.display = "none";
+      const list = Array.from(set).sort(); // alphabetisch
 
-      werkstoffe.forEach(w => {
+      list.forEach(w => {
         const btn = document.createElement("button");
         btn.className = "mat-btn";
-        btn.dataset.mat = w;
         btn.textContent = w;
-        materialsContainer.appendChild(btn);
+        btn.dataset.mat = w;
+        btn.addEventListener("click", onMaterialClick);
+        container.appendChild(btn);
       });
 
-      // Click-Handler für alle Buttons
-      materialsContainer.querySelectorAll(".mat-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          materialsContainer.querySelectorAll(".mat-btn")
-            .forEach(b => b.classList.remove("active"));
-          btn.classList.add("active");
-          selectedWerkstoff = btn.dataset.mat;
-          buildPickers(selectedWerkstoff);
-          document.getElementById("resultArea").style.display = "none";
-        });
-      });
+      // keine Auswahl -> Dimensionen verbergen
+      document.getElementById("dimensionArea").style.display = "none";
+      selectedWerkstoff = null;
     }
 
+    // ---------- Maß-Auswahl aufbauen (reihenfolge-unabhängig) ----------
     function buildPickers(werkstoff) {
       const rows = dataRows.filter(r => getWerkstoff(r) === werkstoff);
 
-      const heights = new Set();
-      const widths  = new Set();
+      const dims = new Set();
 
       rows.forEach(r => {
-        const { height, width } = parseMasze(getMasze(r));
-        if (height && width) {
-          heights.add(height);
-          widths.add(width);
+        const { a, b } = parseMasze(getMasze(r));
+        if (a && b) {
+          dims.add(a);
+          dims.add(b);
         }
       });
 
-      const heightSelect = document.getElementById("heightSelect");
-      const widthSelect  = document.getElementById("widthSelect");
+      const dim1 = document.getElementById("dimSelect1");
+      const dim2 = document.getElementById("dimSelect2");
 
-      heightSelect.innerHTML = "";
-      widthSelect.innerHTML  = "";
+      dim1.innerHTML = "";
+      dim2.innerHTML = "";
 
-      Array.from(heights).sort((a,b) => a-b).forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        heightSelect.appendChild(opt);
-      });
+      const list = Array.from(dims).sort((x, y) => x - y);
 
-      Array.from(widths).sort((a,b) => a-b).forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        widthSelect.appendChild(opt);
+      list.forEach(v => {
+        const o1 = document.createElement("option");
+        o1.value = v;
+        o1.textContent = v;
+        dim1.appendChild(o1);
+
+        const o2 = document.createElement("option");
+        o2.value = v;
+        o2.textContent = v;
+        dim2.appendChild(o2);
       });
 
       const dimArea = document.getElementById("dimensionArea");
-      if (heights.size > 0 && widths.size > 0) {
+      if (list.length > 0) {
         dimArea.style.display = "block";
       } else {
         dimArea.style.display = "none";
@@ -393,7 +368,7 @@
     function updateStatusText() {
       const st = document.getElementById("statusText");
       if (usingExcel) {
-        st.textContent = `Excel importiert: ${dataRows.length} Datensätze`;
+        st.textContent = `Excel importiert: ${dataRows.length} Datensätze.`;
       } else {
         st.textContent = "Keine Excel-Daten importiert (Demo-Fallback aktiv).";
       }
@@ -418,7 +393,6 @@
     }
 
     // ---------- Event-Handler ----------
-
     // Excel-Button
     document.getElementById("excelBtn").addEventListener("click", () => {
       document.getElementById("excelInput").click();
@@ -438,24 +412,35 @@
         dataRows = json;
         usingExcel = true;
         updateStatusText();
-
-        const werkstoffe = extractWerkstoffe(dataRows);
-        buildMaterialButtons(werkstoffe);
+        buildMaterialButtons();
       };
       reader.readAsArrayBuffer(file);
     });
 
-    // Suchen-Button
+    // Material-Button-Klick
+    function onMaterialClick(evt) {
+      document.querySelectorAll(".mat-btn").forEach(b => b.classList.remove("active"));
+      const btn = evt.currentTarget;
+      btn.classList.add("active");
+      selectedWerkstoff = btn.dataset.mat;
+      buildPickers(selectedWerkstoff);
+      document.getElementById("resultArea").style.display = "none";
+    }
+
+    // Suchen-Button (Maße reihenfolge-unabhängig)
     document.getElementById("searchBtn").addEventListener("click", () => {
       if (!selectedWerkstoff) return;
 
-      const h = Number(document.getElementById("heightSelect").value);
-      const w = Number(document.getElementById("widthSelect").value);
+      const v1 = Number(document.getElementById("dimSelect1").value);
+      const v2 = Number(document.getElementById("dimSelect2").value);
 
       const row = dataRows.find(r => {
         if (getWerkstoff(r) !== selectedWerkstoff) return false;
-        const { height, width } = parseMasze(getMasze(r));
-        return height === h && width === w;
+        const { a, b } = parseMasze(getMasze(r));
+        if (!a || !b) return false;
+
+        // Treffer, wenn (a,b) == (v1,v2) oder vertauscht
+        return (a === v1 && b === v2) || (a === v2 && b === v1);
       });
 
       showResult(row || null);
@@ -466,9 +451,7 @@
       dataRows = demoData.slice();
       usingExcel = false;
       updateStatusText();
-
-      const werkstoffe = extractWerkstoffe(dataRows);
-      buildMaterialButtons(werkstoffe);
+      buildMaterialButtons();
     })();
   </script>
 </body>
