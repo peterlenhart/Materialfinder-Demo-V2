@@ -34,7 +34,6 @@
       font-size: 2rem;
     }
 
-    /* obere Zeile: Icon + Status-Text */
     .top-row {
       display: flex;
       align-items: center;
@@ -42,31 +41,30 @@
       margin-bottom: 8px;
     }
 
-    .excel-icon {
+    /* kleiner, dezenter Excel-Button mit Icon */
+    .excel-button {
       width: 48px;
       height: 48px;
-      border-radius: 16px;
+      border-radius: 12px;
       border: none;
       background: #e0e0e0;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-      cursor: pointer;
       padding: 0;
     }
 
-    .excel-icon .icon {
-      font-size: 2rem; /* Schütte mit grünem Pfeil als Emoji */
+    .excel-button span.icon {
+      font-size: 1.8rem;
     }
 
     .status-text {
       font-size: 0.9rem;
       color: #555;
       flex: 1;
+      line-height: 1.4;
     }
 
-    /* Material-Buttons */
     .materials {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -87,10 +85,9 @@
       background: #0050a0;
     }
 
-    /* Höhe / Breite Bereich */
     .dimension-area {
       margin-top: 8px;
-      display: none; /* erst anzeigen, wenn Material gewählt */
+      display: none; /* erst zeigen, wenn Material gewählt */
     }
 
     .dim-row-labels,
@@ -121,7 +118,7 @@
       -webkit-appearance: none;
     }
 
-    /* kleiner Pfeil im Select */
+    /* kleiner Pfeil rechts im Select */
     .dim-picker::after {
       content: "▾";
       position: absolute;
@@ -144,25 +141,22 @@
       color: #fff;
     }
 
-    /* Ergebnisbereich */
     .result-area {
       margin-top: 24px;
-      display: none;
+      display: flex;
       flex-direction: column;
       align-items: center;
       gap: 10px;
     }
 
-    /* quadratisches blaue Feld */
+    /* quadratisches Ergebnisfeld */
     .result-card {
-      /* ca. 40 % der kürzeren Bildschirmkante, aber begrenzt */
+      background: #00549e;
+      border-radius: 24px;
       width: min(40vh, 40vw);
       height: min(40vh, 40vw);
       max-width: 230px;
       max-height: 230px;
-
-      background: #00549e;     /* helleres Blau (100% C, ~50% M, ~40% K) */
-      border-radius: 24px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -209,7 +203,7 @@
     <h1>Material Finder</h1>
 
     <div class="top-row">
-      <button class="excel-icon" id="excelBtn" title="Excel-Datei importieren">
+      <button class="excel-button" id="excelBtn">
         <span class="icon">📥</span>
       </button>
       <div class="status-text" id="statusText">
@@ -217,18 +211,11 @@
       </div>
     </div>
 
-    <!-- verstecktes File-Input -->
     <input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none" />
 
-    <!-- Werkstoff-Auswahl -->
-    <div class="materials">
-      <button class="mat-btn" data-mat="K110">K110</button>
-      <button class="mat-btn" data-mat="Tlx">Tlx</button>
-      <button class="mat-btn" data-mat="Toolox">Toolox</button>
-      <button class="mat-btn" data-mat="W300">W300</button>
-    </div>
+    <!-- Werkstoff-Buttons werden dynamisch gebaut -->
+    <div class="materials" id="materialsContainer"></div>
 
-    <!-- Höhe / Breite + Suchen -->
     <div class="dimension-area" id="dimensionArea">
       <div class="dim-row-labels">
         <div class="dim-label">Höhe</div>
@@ -246,8 +233,7 @@
       <button class="search-btn" id="searchBtn">Suchen</button>
     </div>
 
-    <!-- Ergebnis -->
-    <div class="result-area" id="resultArea">
+    <div class="result-area" id="resultArea" style="display:none;">
       <div class="result-card">
         <div class="result-matnr" id="resultMatnr">----</div>
         <div class="result-number" id="resultNumber">-</div>
@@ -263,16 +249,45 @@
     let usingExcel = false;
     let selectedWerkstoff = null;
 
+    const materialsContainer = document.getElementById("materialsContainer");
+
     // Demo-Fallback-Daten – kannst du später erweitern oder löschen
     const demoData = [
-      { Mat: "7900001015", Werkstoff: "K110", Maße: "40 x 60", Lag: "5.1" },
-      { Mat: "7900002014", Werkstoff: "K110", Maße: "50 x 70", Lag: "6.1" },
-      { Mat: "7900003013", Werkstoff: "W300", Maße: "40 x 60", Lag: "3.2" },
-      { Mat: "7900004012", Werkstoff: "Tlx",  Maße: "40 x 60", Lag: "2.1" },
+      { Mat: "7900001015", Werkstoff: "K110",   Maße: "40 x 60", Lag: "5.1" },
+      { Mat: "7900002014", Werkstoff: "K110",   Maße: "50 x 70", Lag: "6.1" },
+      { Mat: "7900003013", Werkstoff: "W300",   Maße: "40 x 60", Lag: "3.2" },
+      { Mat: "7900004012", Werkstoff: "Tlx",    Maße: "40 x 60", Lag: "2.1" },
       { Mat: "7900005011", Werkstoff: "Toolox", Maße: "40 x 60", Lag: "4.1" }
     ];
 
     // ---------- Hilfsfunktionen ----------
+
+    // liest einen Wert aus einem Datensatz, egal ob Groß-/Kleinschreibung
+    function getField(row, names) {
+      for (const name of names) {
+        if (row[name] !== undefined && row[name] !== "") {
+          return row[name];
+        }
+      }
+      return "";
+    }
+
+    function getWerkstoff(row) {
+      return String(getField(row, ["Werkstoff", "WERKSTOFF", "werkstoff"])).trim();
+    }
+
+    function getMat(row) {
+      return String(getField(row, ["Mat", "MAT", "mat"])).trim();
+    }
+
+    function getMasze(row) {
+      return String(getField(row, ["Maße", "MASSE", "Masse"]));
+    }
+
+    function getLag(row) {
+      return String(getField(row, ["Lag", "LAG", "lag"]));
+    }
+
     function parseMasze(str) {
       if (!str) return { height: null, width: null };
       const parts = String(str).split(/x|×/i).map(s => Number(String(s).trim()));
@@ -295,14 +310,52 @@
       };
     }
 
+    // Liste der Werkstoffe aus den Daten erzeugen
+    function extractWerkstoffe(rows) {
+      const set = new Set();
+      rows.forEach(r => {
+        const w = getWerkstoff(r);
+        if (w) set.add(w);
+      });
+      return Array.from(set);
+    }
+
+    // Werkstoff-Buttons dynamisch aufbauen
+    function buildMaterialButtons(werkstoffe) {
+      materialsContainer.innerHTML = "";
+      selectedWerkstoff = null;
+      document.getElementById("dimensionArea").style.display = "none";
+      document.getElementById("resultArea").style.display = "none";
+
+      werkstoffe.forEach(w => {
+        const btn = document.createElement("button");
+        btn.className = "mat-btn";
+        btn.dataset.mat = w;
+        btn.textContent = w;
+        materialsContainer.appendChild(btn);
+      });
+
+      // Click-Handler für alle Buttons
+      materialsContainer.querySelectorAll(".mat-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          materialsContainer.querySelectorAll(".mat-btn")
+            .forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          selectedWerkstoff = btn.dataset.mat;
+          buildPickers(selectedWerkstoff);
+          document.getElementById("resultArea").style.display = "none";
+        });
+      });
+    }
+
     function buildPickers(werkstoff) {
-      const rows = dataRows.filter(r => String(r.Werkstoff).trim() === werkstoff);
+      const rows = dataRows.filter(r => getWerkstoff(r) === werkstoff);
 
       const heights = new Set();
       const widths  = new Set();
 
       rows.forEach(r => {
-        const { height, width } = parseMasze(r.Maße);
+        const { height, width } = parseMasze(getMasze(r));
         if (height && width) {
           heights.add(height);
           widths.add(width);
@@ -351,22 +404,22 @@
         document.getElementById("resultArea").style.display = "none";
         return;
       }
-      const matnrFull  = String(row.Mat || "").trim();
-      const matnrShort = matnrFull.slice(-4) || "----";  // NUR die letzten 4 Ziffern
-      const { feld, regal } = parseLag(row.Lag);
+      const matnrFull = getMat(row);
+      const matnrShort = matnrFull.slice(-4) || "----";
+      const { feld, regal } = parseLag(getLag(row));
 
-      document.getElementById("resultMatnr").textContent   = matnrShort;
-      document.getElementById("resultNumber").textContent  = feld || "-";
-      document.getElementById("resultRegal").textContent   = `Regal ${regal || "-"}`;
-      document.getElementById("resultInfo").textContent    = matnrFull
-        ? `Materialnummer: ${matnrFull}`
-        : "";
+      document.getElementById("resultMatnr").textContent = matnrShort;
+      document.getElementById("resultNumber").textContent = feld || "-";
+      document.getElementById("resultRegal").textContent = `Regal ${regal || "-"}`;
+      document.getElementById("resultInfo").textContent =
+        matnrFull ? `Materialnummer: ${matnrFull}` : "";
 
       document.getElementById("resultArea").style.display = "flex";
     }
 
     // ---------- Event-Handler ----------
-    // Excel-Icon
+
+    // Excel-Button
     document.getElementById("excelBtn").addEventListener("click", () => {
       document.getElementById("excelInput").click();
     });
@@ -386,22 +439,10 @@
         usingExcel = true;
         updateStatusText();
 
-        if (selectedWerkstoff) {
-          buildPickers(selectedWerkstoff);
-        }
+        const werkstoffe = extractWerkstoffe(dataRows);
+        buildMaterialButtons(werkstoffe);
       };
       reader.readAsArrayBuffer(file);
-    });
-
-    // Material-Buttons
-    document.querySelectorAll(".mat-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".mat-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        selectedWerkstoff = btn.dataset.mat;
-        buildPickers(selectedWerkstoff);
-        document.getElementById("resultArea").style.display = "none";
-      });
     });
 
     // Suchen-Button
@@ -412,8 +453,8 @@
       const w = Number(document.getElementById("widthSelect").value);
 
       const row = dataRows.find(r => {
-        if (String(r.Werkstoff).trim() !== selectedWerkstoff) return false;
-        const { height, width } = parseMasze(r.Maße);
+        if (getWerkstoff(r) !== selectedWerkstoff) return false;
+        const { height, width } = parseMasze(getMasze(r));
         return height === h && width === w;
       });
 
@@ -425,6 +466,9 @@
       dataRows = demoData.slice();
       usingExcel = false;
       updateStatusText();
+
+      const werkstoffe = extractWerkstoffe(dataRows);
+      buildMaterialButtons(werkstoffe);
     })();
   </script>
 </body>
