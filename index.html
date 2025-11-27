@@ -29,7 +29,7 @@
     }
 
     h1 {
-      margin: 0 0 12px;
+      margin: 0 0 8px;
       text-align: center;
       font-size: 2rem;
     }
@@ -39,26 +39,24 @@
       justify-content: space-between;
       align-items: center;
       gap: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
-    /* kleiner, dezenter Excel-Import-Button mit Icon */
     .excel-button {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 4px;
+      gap: 6px;
       padding: 6px 10px;
       border-radius: 999px;
       border: none;
-      font-size: 0.85rem;
-      background: #e0e4ec;
-      color: #222;
+      font-size: 0.9rem;
+      background: #e0e0e0;
+      color: #333;
       cursor: pointer;
       white-space: nowrap;
     }
 
-    .excel-button .icon {
+    .excel-button span.icon {
       font-size: 1.1rem;
     }
 
@@ -69,12 +67,11 @@
       flex: 1;
     }
 
-    /* Werkstoff-Buttons – dynamisch aus Excel, flexibles Grid */
     .materials {
-      margin-top: 14px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
       gap: 8px;
+      margin: 16px 0;
     }
 
     .mat-btn {
@@ -92,21 +89,15 @@
     }
 
     .dimension-area {
-      margin-top: 16px;
-      display: none; /* erst zeigen, wenn Material gewählt */
+      margin-top: 8px;
+      display: none; /* erst zeigen, wenn ein Werkstoff gewählt ist */
     }
 
-    .dim-row-labels,
     .dim-row-selects {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(130px, 1fr));
       gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .dim-label {
-      font-weight: bold;
-      font-size: 0.9rem;
+      margin-bottom: 10px;
     }
 
     .dim-picker {
@@ -116,7 +107,7 @@
     select {
       width: 100%;
       padding: 10px 12px;
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       border-radius: 12px;
       border: 1px solid #cdd4e0;
       background: #ffffff;
@@ -124,6 +115,7 @@
       -webkit-appearance: none;
     }
 
+    /* kleiner Pfeil rechts im Select */
     .dim-picker::after {
       content: "▾";
       position: absolute;
@@ -136,7 +128,7 @@
     }
 
     .search-btn {
-      margin-top: 12px;
+      margin-top: 4px;
       width: 100%;
       padding: 12px 0;
       font-size: 1.15rem;
@@ -149,17 +141,17 @@
 
     .result-area {
       margin-top: 24px;
-      display: none;
+      display: flex;
       flex-direction: column;
       align-items: center;
       gap: 10px;
     }
 
-    /* quadratisches Ergebnisfeld – ca. 40% der kürzeren Bildschirmkante */
+    /* quadratisches Ergebnisfeld */
     .result-card {
-      background: #00549e;
+      background: #0080c0; /* etwas helleres, cyanlastigeres Blau */
       border-radius: 24px;
-      width: min(40vh, 40vw);
+      width: min(40vh, 40vw);   /* Quadrat, ca. 40% der kürzeren Bildschirmkante */
       height: min(40vh, 40vw);
       max-width: 260px;
       max-height: 260px;
@@ -176,8 +168,8 @@
       border-radius: 16px;
       padding: 6px 16px;
       font-size: 1.6rem;
-      letter-spacing: 0.22rem;
-      font-weight: bold;
+      letter-spacing: 0.2rem;
+      font-weight: 700; /* SAP-Nummer fett */
     }
 
     .result-number {
@@ -212,6 +204,7 @@
     <div class="top-row">
       <button class="excel-button" id="excelBtn">
         <span class="icon">📥</span>
+        <span>Excel importieren</span>
       </button>
       <div class="status-text" id="statusText">
         Keine Excel-Daten importiert (Demo-Fallback aktiv).
@@ -220,28 +213,24 @@
 
     <input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none" />
 
-    <div class="materials" id="materials">
-      <!-- Werkstoff-Buttons werden per JS erzeugt -->
+    <div class="materials" id="materialsContainer">
+      <!-- Werkstoff-Buttons werden per JS eingefügt -->
     </div>
 
     <div class="dimension-area" id="dimensionArea">
-      <div class="dim-row-labels">
-        <div class="dim-label">Maß 1</div>
-        <div class="dim-label">Maß 2</div>
-      </div>
       <div class="dim-row-selects">
         <div class="dim-picker">
-          <select id="dim1Select"></select>
+          <select id="select1"></select>
         </div>
         <div class="dim-picker">
-          <select id="dim2Select"></select>
+          <select id="select2"></select>
         </div>
       </div>
 
       <button class="search-btn" id="searchBtn">Suchen</button>
     </div>
 
-    <div class="result-area" id="resultArea">
+    <div class="result-area" id="resultArea" style="display:none;">
       <div class="result-card">
         <div class="result-matnr" id="resultMatnr">----</div>
         <div class="result-number" id="resultNumber">-</div>
@@ -252,318 +241,329 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "materialfinder_data_v1";
+    "use strict";
+
+    const LS_KEY_DATA = "mf_data_v1";
+    const LS_KEY_USING = "mf_using_v1";
 
     let dataRows = [];
     let usingExcel = false;
+
+    // nach Werkstoff -> { combos: [{a,b,row}], measures: Set(...) }
+    const werkData = {};
     let selectedWerkstoff = null;
 
-    // Demo-Fallback-Daten
+    const materialsContainer = document.getElementById("materialsContainer");
+    const dimensionArea = document.getElementById("dimensionArea");
+    const select1 = document.getElementById("select1");
+    const select2 = document.getElementById("select2");
+    const resultArea = document.getElementById("resultArea");
+    const statusText = document.getElementById("statusText");
+
+    // --- Demo-Daten (nur falls keine Excel im LocalStorage liegt) ---
     const demoData = [
-      { Mat: "7900001015", Werkstoff: "K110",  Maße: "8 x 10",   Lag: "5.1" },
-      { Mat: "7900002014", Werkstoff: "K110",  Maße: "10 x 20",  Lag: "6.1" },
-      { Mat: "7900003013", Werkstoff: "K110",  Maße: "20 x 50",  Lag: "7.2" },
-      { Mat: "7900004012", Werkstoff: "W300",  Maße: "8 x 10",   Lag: "3.2" },
-      { Mat: "7900005011", Werkstoff: "W300",  Maße: "10 x 12",  Lag: "4.1" },
-      { Mat: "7900006010", Werkstoff: "W300",  Maße: "12 x 20",  Lag: "9.3" },
-      { Mat: "7900007009", Werkstoff: "TLX",   Maße: "20 x 20",  Lag: "2.1" },
-      { Mat: "7900008008", Werkstoff: "TLX",   Maße: "20 x 50",  Lag: "8.1" },
-      { Mat: "7900009007", Werkstoff: "Toolox",Maße: "40 x 60",  Lag: "4.4" }
+      { Mat: "7900001015", Werkstoff: "K110",  "Maße": "8 x 20",  Lag: "5.1" },
+      { Mat: "7900002014", Werkstoff: "K110",  "Maße": "10 x 20", Lag: "6.1" },
+      { Mat: "7900003013", Werkstoff: "K110",  "Maße": "20 x 50", Lag: "6.2" },
+      { Mat: "7900004012", Werkstoff: "W300",  "Maße": "10 x 12", Lag: "3.2" },
+      { Mat: "7900005011", Werkstoff: "W300",  "Maße": "12 x 20", Lag: "4.1" },
+      { Mat: "7900006010", Werkstoff: "TLX",   "Maße": "8 x 10",  Lag: "2.1" },
+      { Mat: "7900007009", Werkstoff: "TLX",   "Maße": "20 x 50", Lag: "2.2" }
     ];
 
+    // --- Hilfsfunktionen ---
+
     function parseMasze(str) {
-      if (!str) return { a: null, b: null };
-      const parts = String(str).split(/x|×/i).map(s => Number(String(s).trim()));
-      if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) {
-        return { a: null, b: null };
-      }
-      const a = parts[0];
-      const b = parts[1];
-      return { a, b };
+      if (!str) return null;
+      const m = String(str).match(/(\d+)\s*[x×]\s*(\d+)/i);
+      if (!m) return null;
+      const a = parseInt(m[1], 10);
+      const b = parseInt(m[2], 10);
+      if (isNaN(a) || isNaN(b)) return null;
+      const minv = Math.min(a, b);
+      const maxv = Math.max(a, b);
+      return { a: minv, b: maxv };
     }
 
     function parseLag(str) {
       if (!str) return { feld: "-", regal: "-" };
-      const p = String(str).split(".");
+      const parts = String(str).split(".");
       return {
-        feld: p[0] || "-",
-        regal: p[1] || "-"
+        feld: parts[0] || "-",
+        regal: parts[1] || "-"
       };
     }
 
-    function updateStatusText() {
-      const st = document.getElementById("statusText");
+    function updateStatus() {
       if (usingExcel) {
-        st.textContent = `Excel-Daten aktiv: ${dataRows.length} Datensätze (gespeichert).`;
+        statusText.textContent = `Excel-Daten importiert: ${dataRows.length} Datensätze (gespeichert).`;
       } else {
-        st.textContent = "Keine Excel-Daten importiert (Demo-Fallback aktiv).";
+        statusText.textContent = "Keine Excel-Daten importiert (Demo-Fallback aktiv).";
       }
     }
 
     function saveToLocalStorage() {
-      if (!usingExcel || !Array.isArray(dataRows) || dataRows.length === 0) return;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataRows));
+        localStorage.setItem(LS_KEY_DATA, JSON.stringify(dataRows));
+        localStorage.setItem(LS_KEY_USING, usingExcel ? "1" : "0");
       } catch (e) {
-        console.warn("Konnte LocalStorage nicht schreiben:", e);
+        console.warn("LocalStorage nicht möglich:", e);
       }
     }
 
     function loadFromLocalStorage() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(LS_KEY_DATA);
         if (!raw) return false;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          dataRows = parsed;
-          usingExcel = true;
-          return true;
-        }
-      } catch (e) {
-        console.warn("Konnte LocalStorage nicht lesen:", e);
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr) || arr.length === 0) return false;
+        dataRows = arr;
+        usingExcel = localStorage.getItem(LS_KEY_USING) === "1";
+        return true;
+      } catch {
+        return false;
       }
-      return false;
     }
 
-    function rebuildMaterials() {
-      const container = document.getElementById("materials");
-      container.innerHTML = "";
-      selectedWerkstoff = null;
-      document.getElementById("dimensionArea").style.display = "none";
-      document.getElementById("resultArea").style.display = "none";
+    function prepareWerkData() {
+      // alles zurücksetzen
+      for (const key in werkData) delete werkData[key];
 
-      const werkSet = new Set();
-      dataRows.forEach(r => {
-        const w = String(r.Werkstoff || "").trim();
-        if (w) werkSet.add(w);
+      dataRows.forEach(row => {
+        const werk = String(row.Werkstoff || "").trim();
+        if (!werk) return;
+        const m = parseMasze(row["Maße"]);
+        if (!m) return;
+
+        if (!werkData[werk]) {
+          werkData[werk] = {
+            combos: [],
+            measures: new Set()
+          };
+        }
+        werkData[werk].combos.push({ a: m.a, b: m.b, row });
+        werkData[werk].measures.add(m.a);
+        werkData[werk].measures.add(m.b);
       });
+    }
 
-      const werkList = Array.from(werkSet).sort((a, b) => a.localeCompare(b, "de"));
+    function buildMaterialButtons() {
+      materialsContainer.innerHTML = "";
+      const werke = Object.keys(werkData).sort((a, b) =>
+        a.localeCompare(b, "de", { sensitivity: "base" })
+      );
 
-      werkList.forEach(w => {
+      werke.forEach(werk => {
         const btn = document.createElement("button");
         btn.className = "mat-btn";
-        btn.textContent = w;
-        btn.dataset.werkstoff = w;
+        btn.textContent = werk;
+        btn.dataset.werkstoff = werk;
         btn.addEventListener("click", () => {
           document.querySelectorAll(".mat-btn").forEach(b => b.classList.remove("active"));
           btn.classList.add("active");
-          selectedWerkstoff = w;
-          setupDimensionSelectors();
-          document.getElementById("resultArea").style.display = "none";
+          selectedWerkstoff = werk;
+          resultArea.style.display = "none";
+          showDimensionAreaForWerk(werk);
         });
-        container.appendChild(btn);
+        materialsContainer.appendChild(btn);
+      });
+
+      // keine Werkstoffe -> Dimensionen verstecken
+      if (werke.length === 0) {
+        dimensionArea.style.display = "none";
+      }
+    }
+
+    function setSelectPlaceholder(select, label) {
+      select.innerHTML = "";
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = label;
+      opt.disabled = true;
+      opt.selected = true;
+      opt.hidden = true;
+      select.appendChild(opt);
+    }
+
+    function populateSelectWithMeasures(select, measures, label) {
+      setSelectPlaceholder(select, label);
+      const sorted = Array.from(measures).sort((a, b) => a - b);
+      sorted.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = String(v);
+        opt.textContent = String(v);
+        select.appendChild(opt);
       });
     }
 
-    function setupDimensionSelectors() {
-      const dimArea = document.getElementById("dimensionArea");
-      const dim1 = document.getElementById("dim1Select");
-      const dim2 = document.getElementById("dim2Select");
-
-      dim1.innerHTML = "";
-      dim2.innerHTML = "";
-
-      if (!selectedWerkstoff) {
-        dimArea.style.display = "none";
+    function showDimensionAreaForWerk(werk) {
+      const wd = werkData[werk];
+      if (!wd || wd.measures.size === 0) {
+        dimensionArea.style.display = "none";
         return;
       }
-
-      const rows = dataRows.filter(r => String(r.Werkstoff).trim() === selectedWerkstoff);
-
-      const dims = new Set();
-      rows.forEach(r => {
-        const { a, b } = parseMasze(r.Maße);
-        if (!a || !b) return;
-        dims.add(a);
-        dims.add(b);
-      });
-
-      const allDims = Array.from(dims).sort((x, y) => x - y);
-      if (allDims.length === 0) {
-        dimArea.style.display = "none";
-        return;
-      }
-
-      const placeholderOption1 = document.createElement("option");
-      placeholderOption1.value = "";
-      placeholderOption1.textContent = "Wählen";
-      dim1.appendChild(placeholderOption1);
-
-      const placeholderOption2 = document.createElement("option");
-      placeholderOption2.value = "";
-      placeholderOption2.textContent = "Wählen";
-      dim2.appendChild(placeholderOption2);
-
-      allDims.forEach(v => {
-        const o1 = document.createElement("option");
-        o1.value = v;
-        o1.textContent = v;
-        dim1.appendChild(o1);
-
-        const o2 = document.createElement("option");
-        o2.value = v;
-        o2.textContent = v;
-        dim2.appendChild(o2);
-      });
-
-      dimArea.style.display = "block";
+      populateSelectWithMeasures(select1, wd.measures, "Maß 1");
+      populateSelectWithMeasures(select2, wd.measures, "Maß 2");
+      dimensionArea.style.display = "block";
     }
 
-    function updateDimOptions() {
+    function resetSelectsForWerk(werk) {
+      const wd = werkData[werk];
+      if (!wd) return;
+      populateSelectWithMeasures(select1, wd.measures, "Maß 1");
+      populateSelectWithMeasures(select2, wd.measures, "Maß 2");
+    }
+
+    function restrictOtherSelect(source) {
       if (!selectedWerkstoff) return;
+      const wd = werkData[selectedWerkstoff];
+      if (!wd) return;
 
-      const dim1 = document.getElementById("dim1Select");
-      const dim2 = document.getElementById("dim2Select");
+      const val1 = select1.value;
+      const val2 = select2.value;
 
-      const v1 = dim1.value ? Number(dim1.value) : null;
-      const v2 = dim2.value ? Number(dim2.value) : null;
-
-      const rows = dataRows.filter(r => String(r.Werkstoff).trim() === selectedWerkstoff);
-
-      const dimsSet = new Set();
-      rows.forEach(r => {
-        const { a, b } = parseMasze(r.Maße);
-        if (!a || !b) return;
-        dimsSet.add(a);
-        dimsSet.add(b);
-      });
-      const allDims = Array.from(dimsSet).sort((x, y) => x - y);
-
-      function allowedFor(otherVal) {
-        if (!otherVal) return allDims;
-        const allowed = new Set();
-        rows.forEach(r => {
-          const { a, b } = parseMasze(r.Maße);
-          if (!a || !b) return;
-          if (a === otherVal || b === otherVal) {
-            allowed.add(a);
-            allowed.add(b);
-          }
-        });
-        return Array.from(allowed).sort((x, y) => x - y);
+      // Wenn beide leer -> nichts
+      if (!val1 && !val2) {
+        resetSelectsForWerk(selectedWerkstoff);
+        return;
       }
 
-      const allowed1 = allowedFor(v2);
-      const allowed2 = allowedFor(v1);
+      // Wenn in beiden etwas steht, lassen wir alles so – Filterung greift erst bei der Suche.
+      if (val1 && val2) return;
 
-      function refillSelect(select, allowed, currentVal) {
-        const placeholderText = "Wählen";
-        const oldVal = currentVal && allowed.includes(currentVal) ? String(currentVal) : "";
-
-        select.innerHTML = "";
-        const ph = document.createElement("option");
-        ph.value = "";
-        ph.textContent = placeholderText;
-        select.appendChild(ph);
-
-        allowed.forEach(v => {
+      // Symmetrische Logik:
+      if (source === "s1" && val1) {
+        const allowed = new Set();
+        wd.combos.forEach(c => {
+          if (String(c.a) === val1) allowed.add(String(c.b));
+          if (String(c.b) === val1) allowed.add(String(c.a));
+        });
+        // zweites Select auf erlaubte Werte einschränken
+        select2.innerHTML = "";
+        setSelectPlaceholder(select2, "Maß 2");
+        Array.from(allowed).sort((a, b) => Number(a) - Number(b)).forEach(v => {
           const opt = document.createElement("option");
           opt.value = v;
           opt.textContent = v;
-          select.appendChild(opt);
+          select2.appendChild(opt);
         });
-
-        select.value = oldVal;
       }
 
-      refillSelect(dim1, allowed1, v1);
-      refillSelect(dim2, allowed2, v2);
+      if (source === "s2" && val2) {
+        const allowed = new Set();
+        wd.combos.forEach(c => {
+          if (String(c.a) === val2) allowed.add(String(c.b));
+          if (String(c.b) === val2) allowed.add(String(c.a));
+        });
+        select1.innerHTML = "";
+        setSelectPlaceholder(select1, "Maß 1");
+        Array.from(allowed).sort((a, b) => Number(a) - Number(b)).forEach(v => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v;
+          select1.appendChild(opt);
+        });
+      }
     }
 
     function showResult(row) {
-      const resultArea = document.getElementById("resultArea");
       if (!row) {
         resultArea.style.display = "none";
         return;
       }
+
       const matFull = String(row.Mat || "").trim();
       const matShort = matFull.slice(-4) || "----";
-      const { feld, regal } = parseLag(row.Lag);
+      const lagInfo = parseLag(row.Lag);
 
       document.getElementById("resultMatnr").textContent = matShort;
-      document.getElementById("resultNumber").textContent = feld || "-";
-      document.getElementById("resultRegal").textContent = `Regal ${regal || "-"}`;
-      document.getElementById("resultInfo").textContent = matFull ? `Materialnummer: ${matFull}` : "";
+      document.getElementById("resultNumber").textContent = lagInfo.feld || "-";
+      document.getElementById("resultRegal").textContent = `Regal ${lagInfo.regal || "-"}`;
+      document.getElementById("resultInfo").textContent =
+        matFull ? `Materialnummer: ${matFull}` : "";
 
       resultArea.style.display = "flex";
 
-      const dim1 = document.getElementById("dim1Select");
-      const dim2 = document.getElementById("dim2Select");
-      dim1.value = "";
-      dim2.value = "";
-      updateDimOptions();
+      // nach erfolgreichem Treffer Maß-Felder zurück auf "Maß 1 / Maß 2"
+      if (selectedWerkstoff) {
+        resetSelectsForWerk(selectedWerkstoff);
+      }
     }
 
+    // --- Event-Handler ---
+
+    // Excel-Button
     document.getElementById("excelBtn").addEventListener("click", () => {
       document.getElementById("excelInput").click();
     });
 
-    document.getElementById("excelInput").addEventListener("change", (evt) => {
+    document.getElementById("excelInput").addEventListener("change", evt => {
       const file = evt.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = e => {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
         // Wir erwarten Spalten: Mat, Werkstoff, Maße, Lag
-        dataRows = json.filter(r =>
-          r.Mat !== undefined &&
-          r.Werkstoff !== undefined &&
-          r.Maße !== undefined &&
-          r.Lag !== undefined
-        );
-
-        usingExcel = dataRows.length > 0;
-        updateStatusText();
+        dataRows = json;
+        usingExcel = true;
+        prepareWerkData();
+        buildMaterialButtons();
         saveToLocalStorage();
-        rebuildMaterials();
+        updateStatus();
+        // Auswahl- und Ergebnisbereiche zurücksetzen
+        selectedWerkstoff = null;
+        dimensionArea.style.display = "none";
+        resultArea.style.display = "none";
       };
       reader.readAsArrayBuffer(file);
     });
 
-    document.getElementById("dim1Select").addEventListener("change", () => {
-      updateDimOptions();
-      document.getElementById("resultArea").style.display = "none";
+    // Maß-Auswahl – symmetrische Logik
+    select1.addEventListener("change", () => {
+      restrictOtherSelect("s1");
     });
 
-    document.getElementById("dim2Select").addEventListener("change", () => {
-      updateDimOptions();
-      document.getElementById("resultArea").style.display = "none";
+    select2.addEventListener("change", () => {
+      restrictOtherSelect("s2");
     });
 
+    // Suchen
     document.getElementById("searchBtn").addEventListener("click", () => {
       if (!selectedWerkstoff) return;
+      const wd = werkData[selectedWerkstoff];
+      if (!wd) return;
 
-      const dim1 = document.getElementById("dim1Select");
-      const dim2 = document.getElementById("dim2Select");
-      if (!dim1.value || !dim2.value) return;
+      const v1 = select1.value;
+      const v2 = select2.value;
+      const n1 = Number(v1);
+      const n2 = Number(v2);
+      if (!v1 || !v2 || isNaN(n1) || isNaN(n2)) {
+        showResult(null);
+        return;
+      }
 
-      const v1 = Number(dim1.value);
-      const v2 = Number(dim2.value);
+      const small = Math.min(n1, n2);
+      const large = Math.max(n1, n2);
 
-      const row = dataRows.find(r => {
-        if (String(r.Werkstoff).trim() !== selectedWerkstoff) return false;
-        const { a, b } = parseMasze(r.Maße);
-        if (!a || !b) return false;
-        return (a === v1 && b === v2) || (a === v2 && b === v1);
-      });
-
-      showResult(row || null);
+      const hit = wd.combos.find(c => c.a === small && c.b === large);
+      showResult(hit ? hit.row : null);
     });
 
+    // --- Initialisierung ---
     (function init() {
       const loaded = loadFromLocalStorage();
       if (!loaded) {
         dataRows = demoData.slice();
         usingExcel = false;
       }
-      updateStatusText();
-      rebuildMaterials();
+      prepareWerkData();
+      buildMaterialButtons();
+      updateStatus();
     })();
   </script>
 </body>
